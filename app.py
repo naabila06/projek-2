@@ -228,51 +228,79 @@ st.caption(
 
 
 
+
 # ==================================================
-# 5. ANIMASI JARINGAN
+# 5. ANIMASI JARINGAN BERTAHAP
 # ==================================================
 
-st.subheader("🎬 Simulasi Perubahan Jaringan")
+st.subheader("🎬 Animasi Perubahan Jaringan")
 
 st.write(
-    "Amati jaringan awal, penghapusan satu hubungan, "
-    "dan pemulihan hubungan tersebut."
+    "Amati bagaimana anggota dan hubungan pertemanan berubah "
+    "secara bertahap, kemudian lihat dampaknya terhadap "
+    "kelompok sosial."
 )
 
 G_dasar = st.session_state.G_awal.copy()
+daftar_sisi = sorted(
+    G_dasar.edges(),
+    key=lambda e: (min(e), max(e))
+)
 
-# Pilih satu hubungan dari jaringan yang sedang digunakan.
-# Tidak harus berupa jembatan.
-if G_dasar.number_of_edges() > 0:
-    edge_demo = sorted(
-        G_dasar.edges(),
-        key=lambda edge: (min(edge), max(edge))
-    )[0]
+if daftar_sisi:
+    # Pilih beberapa hubungan untuk dihapus bertahap.
+    # Hubungan dipilih berdasarkan urutan tetap agar hasil konsisten.
+    jumlah_hapus = min(8, max(1, len(daftar_sisi) // 6))
+    sisi_dihapus = daftar_sisi[:jumlah_hapus]
 
-    G_putus = G_dasar.copy()
-    G_putus.remove_edge(*edge_demo)
+    # Buat kondisi jaringan pada setiap tahap.
+    tahap_graf = [G_dasar.copy()]
+    G_sementara = G_dasar.copy()
 
-    G_pulih = G_putus.copy()
-    G_pulih.add_edge(*edge_demo)
+    for sisi in sisi_dihapus:
+        if G_sementara.has_edge(*sisi):
+            G_sementara.remove_edge(*sisi)
+            tahap_graf.append(G_sementara.copy())
+
+    # Pulihkan hubungan satu per satu.
+    for sisi in reversed(sisi_dihapus):
+        if not G_sementara.has_edge(*sisi):
+            G_sementara.add_edge(*sisi)
+            tahap_graf.append(G_sementara.copy())
 
     nama_tahap = [
-        "Jaringan awal",
-        "Hubungan terputus",
-        "Hubungan dipulihkan"
+        "Jaringan awal"
     ]
 
-    fig_awal = buat_graf(G_dasar, pos)
-    fig_putus = buat_graf(
-        G_putus, pos, edge_hapus=edge_demo
-    )
-    fig_pulih = buat_graf(
-        G_pulih, pos, edge_baru=edge_demo
-    )
+    nama_tahap += [
+        f"Hubungan terhapus {i}"
+        for i in range(1, len(tahap_graf) - len(sisi_dihapus))
+    ]
+
+    nama_tahap += [
+        f"Pemulihan hubungan {i}"
+        for i in range(1, len(sisi_dihapus) + 1)
+    ]
+
+    # Pastikan jumlah label sama dengan jumlah tahap
+    nama_tahap = nama_tahap[:len(tahap_graf)]
+
+    def buat_frame(graph, tahap):
+        # Buat grafik pada kondisi tertentu.
+        fig_tahap = buat_graf(graph, pos)
+
+        # Gunakan warna kelompok yang dihitung dari kondisi tahap ini.
+        return go.Frame(
+            name=tahap,
+            data=fig_tahap.data
+        )
+
+    # Gunakan tampilan awal sebagai dasar animasi.
+    fig_awal = buat_graf(tahap_graf[0], pos)
 
     frames = [
-        go.Frame(name=nama_tahap[0], data=fig_awal.data),
-        go.Frame(name=nama_tahap[1], data=fig_putus.data),
-        go.Frame(name=nama_tahap[2], data=fig_pulih.data)
+        buat_frame(graph, nama)
+        for graph, nama in zip(tahap_graf, nama_tahap)
     ]
 
     fig_animasi = go.Figure(
@@ -280,33 +308,49 @@ if G_dasar.number_of_edges() > 0:
         frames=frames
     )
 
+    # Kunci batas grafik agar posisi anggota tetap.
+    rentang_x = [pos[n][0] for n in G_dasar.nodes()]
+    rentang_y = [pos[n][1] for n in G_dasar.nodes()]
+
     fig_animasi.update_layout(
-        height=600,
-        margin=dict(l=10, r=10, t=80, b=70),
+        height=620,
+        margin=dict(l=10, r=10, t=90, b=90),
         showlegend=False,
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
         plot_bgcolor="white",
+        xaxis=dict(
+            visible=False,
+            range=[
+                min(rentang_x) - 0.15,
+                max(rentang_x) + 0.15
+            ]
+        ),
+        yaxis=dict(
+            visible=False,
+            range=[
+                min(rentang_y) - 0.15,
+                max(rentang_y) + 0.15
+            ]
+        ),
         updatemenus=[
             dict(
                 type="buttons",
                 direction="left",
                 x=0,
-                y=1.15,
+                y=1.16,
                 showactive=False,
                 buttons=[
                     dict(
-                        label="▶ Mulai animasi",
+                        label="▶ Mulai",
                         method="animate",
                         args=[
                             None,
                             {
                                 "frame": {
-                                    "duration": 1200,
+                                    "duration": 900,
                                     "redraw": True
                                 },
                                 "transition": {
-                                    "duration": 300
+                                    "duration": 250
                                 },
                                 "fromcurrent": True,
                                 "mode": "immediate"
@@ -318,6 +362,23 @@ if G_dasar.number_of_edges() > 0:
                         method="animate",
                         args=[
                             [None],
+                            {
+                                "frame": {
+                                    "duration": 0,
+                                    "redraw": False
+                                },
+                                "transition": {
+                                    "duration": 0
+                                },
+                                "mode": "immediate"
+                            }
+                        ]
+                    ),
+                    dict(
+                        label="↺ Ulangi",
+                        method="animate",
+                        args=[
+                            [nama_tahap[0]],
                             {
                                 "frame": {
                                     "duration": 0,
@@ -336,7 +397,12 @@ if G_dasar.number_of_edges() > 0:
         sliders=[
             dict(
                 active=0,
-                currentvalue={"prefix": "Tahap: "},
+                x=0,
+                y=0,
+                len=1,
+                currentvalue={
+                    "prefix": "Tahap: "
+                },
                 steps=[
                     dict(
                         label=nama,
@@ -349,7 +415,7 @@ if G_dasar.number_of_edges() > 0:
                                     "redraw": True
                                 },
                                 "transition": {
-                                    "duration": 300
+                                    "duration": 200
                                 },
                                 "mode": "immediate"
                             }
@@ -364,32 +430,25 @@ if G_dasar.number_of_edges() > 0:
     st.plotly_chart(
         fig_animasi,
         use_container_width=True,
-        key="grafik_animasi"
+        key="animasi_banyak_tahap"
     )
 
     st.write(
-        f"Hubungan simulasi: anggota {edge_demo[0] + 1} "
-        f"dengan anggota {edge_demo[1] + 1}."
+        f"Jumlah tahap animasi: {len(tahap_graf)}."
     )
 
-    st.write(
-        f"Kelompok sebelum penghapusan: "
-        f"{jumlah_kelompok(G_dasar)}."
-    )
-
-    st.write(
-        f"Kelompok setelah penghapusan: "
-        f"{jumlah_kelompok(G_putus)}."
-    )
-
-    st.caption(
-        "Warna merah putus-putus menandai hubungan yang dihapus. "
-        "Warna hijau menandai hubungan yang dipulihkan. "
-        "Penghapusan satu hubungan belum tentu memisahkan kelompok."
-    )
+    for i, graph in enumerate(tahap_graf):
+        st.caption(
+            f"{nama_tahap[i]}: "
+            f"{graph.number_of_nodes()} anggota, "
+            f"{graph.number_of_edges()} hubungan, "
+            f"{jumlah_kelompok(graph)} kelompok."
+        )
 
 else:
-    st.warning("Jaringan belum memiliki hubungan untuk disimulasikan.")
+    st.warning(
+        "Jaringan belum memiliki hubungan untuk dianimasikan."
+    )
 
 
 # ==================================================
