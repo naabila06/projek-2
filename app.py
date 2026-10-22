@@ -227,6 +227,7 @@ st.caption(
 )
 
 
+
 # ==================================================
 # 5. ANIMASI JARINGAN
 # ==================================================
@@ -234,106 +235,58 @@ st.caption(
 st.subheader("🎬 Simulasi Perubahan Jaringan")
 
 st.write(
-    "Animasi menunjukkan kondisi jaringan awal, satu hubungan "
-    "yang terputus, dan hubungan tersebut dipulihkan kembali."
+    "Amati jaringan awal, penghapusan satu hubungan, "
+    "dan pemulihan hubungan tersebut."
 )
 
-# Cari hubungan jembatan dari jaringan awal.
-# Hubungan jembatan dapat menyebabkan jaringan terpisah
-# ketika hubungan itu dihapus.
 G_dasar = st.session_state.G_awal.copy()
-jembatan_awal = list(nx.bridges(G_dasar))
 
-if jembatan_awal:
-    edge_demo = jembatan_awal[0]
-else:
-    # Jika tidak ada jembatan, cari hubungan yang ketika
-    # dihapus meningkatkan jumlah kelompok.
-    edge_demo = None
+# Pilih satu hubungan dari jaringan yang sedang digunakan.
+# Tidak harus berupa jembatan.
+if G_dasar.number_of_edges() > 0:
+    edge_demo = sorted(
+        G_dasar.edges(),
+        key=lambda edge: (min(edge), max(edge))
+    )[0]
 
-    for u, v in G_dasar.edges():
-        percobaan = G_dasar.copy()
-        percobaan.remove_edge(u, v)
-
-        if jumlah_kelompok(percobaan) > jumlah_kelompok(G_dasar):
-            edge_demo = (u, v)
-            break
-
-if edge_demo is not None:
     G_putus = G_dasar.copy()
     G_putus.remove_edge(*edge_demo)
 
     G_pulih = G_putus.copy()
     G_pulih.add_edge(*edge_demo)
 
-    # Nama tahap harus sesuai dengan nama frame Plotly
     nama_tahap = [
         "Jaringan awal",
         "Hubungan terputus",
         "Hubungan dipulihkan"
     ]
 
-    data_awal = buat_graf(
-        G_dasar, pos
-    ).data
-
-    data_putus = buat_graf(
+    fig_awal = buat_graf(G_dasar, pos)
+    fig_putus = buat_graf(
         G_putus, pos, edge_hapus=edge_demo
-    ).data
-
-    data_pulih = buat_graf(
+    )
+    fig_pulih = buat_graf(
         G_pulih, pos, edge_baru=edge_demo
-    ).data
-
-    fig_animasi = go.Figure(
-        data=data_awal,
-        frames=[
-            go.Frame(
-                name=nama_tahap[0],
-                data=data_awal
-            ),
-            go.Frame(
-                name=nama_tahap[1],
-                data=data_putus
-            ),
-            go.Frame(
-                name=nama_tahap[2],
-                data=data_pulih
-            )
-        ]
     )
 
-    # Rentang sumbu dikunci agar posisi graf tetap stabil
-    batas_x = [pos[n][0] for n in G_dasar.nodes()]
-    batas_y = [pos[n][1] for n in G_dasar.nodes()]
+    frames = [
+        go.Frame(name=nama_tahap[0], data=fig_awal.data),
+        go.Frame(name=nama_tahap[1], data=fig_putus.data),
+        go.Frame(name=nama_tahap[2], data=fig_pulih.data)
+    ]
+
+    fig_animasi = go.Figure(
+        data=fig_awal.data,
+        frames=frames
+    )
 
     fig_animasi.update_layout(
-        height=620,
-        margin=dict(l=10, r=10, t=80, b=50),
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="left",
-            x=0
-        ),
-        xaxis=dict(
-            visible=False,
-            range=[
-                min(batas_x) - 0.15,
-                max(batas_x) + 0.15
-            ]
-        ),
-        yaxis=dict(
-            visible=False,
-            range=[
-                min(batas_y) - 0.15,
-                max(batas_y) + 0.15
-            ]
-        ),
+        height=600,
+        margin=dict(l=10, r=10, t=80, b=70),
+        showlegend=False,
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
         plot_bgcolor="white",
-        paper_bgcolor="white",
         updatemenus=[
             dict(
                 type="buttons",
@@ -349,11 +302,11 @@ if edge_demo is not None:
                             None,
                             {
                                 "frame": {
-                                    "duration": 1400,
+                                    "duration": 1200,
                                     "redraw": True
                                 },
                                 "transition": {
-                                    "duration": 400
+                                    "duration": 300
                                 },
                                 "fromcurrent": True,
                                 "mode": "immediate"
@@ -368,7 +321,7 @@ if edge_demo is not None:
                             {
                                 "frame": {
                                     "duration": 0,
-                                    "redraw": False
+                                    "redraw": True
                                 },
                                 "transition": {
                                     "duration": 0
@@ -383,12 +336,7 @@ if edge_demo is not None:
         sliders=[
             dict(
                 active=0,
-                x=0,
-                y=0,
-                len=1,
-                currentvalue={
-                    "prefix": "Tahap: "
-                },
+                currentvalue={"prefix": "Tahap: "},
                 steps=[
                     dict(
                         label=nama,
@@ -419,25 +367,29 @@ if edge_demo is not None:
         key="grafik_animasi"
     )
 
-    st.markdown(
-        f"""
-        **Keterangan simulasi:**
+    st.write(
+        f"Hubungan simulasi: anggota {edge_demo[0] + 1} "
+        f"dengan anggota {edge_demo[1] + 1}."
+    )
 
-        - **Jaringan awal:** terdapat {jumlah_kelompok(G_dasar)} kelompok.
-        - **Hubungan terputus:** hubungan antara
-          anggota {edge_demo[0] + 1} dan anggota {edge_demo[1] + 1}
-          dihapus, sehingga terdapat {jumlah_kelompok(G_putus)} kelompok.
-        - **Hubungan dipulihkan:** hubungan ditambahkan kembali,
-          sehingga terdapat {jumlah_kelompok(G_pulih)} kelompok.
-        """
+    st.write(
+        f"Kelompok sebelum penghapusan: "
+        f"{jumlah_kelompok(G_dasar)}."
+    )
+
+    st.write(
+        f"Kelompok setelah penghapusan: "
+        f"{jumlah_kelompok(G_putus)}."
+    )
+
+    st.caption(
+        "Warna merah putus-putus menandai hubungan yang dihapus. "
+        "Warna hijau menandai hubungan yang dipulihkan. "
+        "Penghapusan satu hubungan belum tentu memisahkan kelompok."
     )
 
 else:
-    st.warning(
-        "Tidak ditemukan hubungan yang dapat memisahkan jaringan "
-        "ketika dihapus. Gunakan kontrol manual di bawah untuk "
-        "mengubah jaringan."
-    )
+    st.warning("Jaringan belum memiliki hubungan untuk disimulasikan.")
 
 
 # ==================================================
